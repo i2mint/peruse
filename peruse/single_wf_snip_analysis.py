@@ -9,7 +9,8 @@ from numpy import array, unique, log, ndarray, nan, where, empty, percentile, ra
 from sklearn.decomposition import PCA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from sklearn.cluster import KMeans
-from librosa import stft
+
+from peruse.util import stft
 
 MAX_N_SNIPS = 1001
 DFLT_SR = 44100
@@ -567,12 +568,13 @@ def running_mean(it, chk_size=2, chk_step=1):  # TODO: A version of this with ch
             for x in it:
                 yield x
 
+
 from contextlib import suppress
 
 with suppress(ModuleNotFoundError):
-
     import matplotlib.pylab as plt
     from hum import plot_wf  # pip install hum
+
 
     class TaggedWaveformAnalysisExtended(TaggedWaveformAnalysis):
         def plot_wf(self, x):
@@ -589,6 +591,4 @@ with suppress(ModuleNotFoundError):
                 t = list(running_mean(t, chk_size=smooth))
             self.plot_tiles(t)
 
-
 ########## For a webservice ############################################################################################
-
