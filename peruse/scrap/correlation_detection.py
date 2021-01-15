@@ -54,3 +54,4 @@ class MotifDetector:
         return s
 
     __call__ = seq_to_peaks
+
