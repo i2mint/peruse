@@ -22,6 +22,12 @@ def ensure_array(x):
         return x
 
 
+def array_or_str(x):
+    if isinstance(x, (ndarray, str)):
+        return x
+    return array(x)
+
+
 import os
 
 MIN_BYTES_TO_BE_CONSIDERED_WAV_BYTES = 44 + 2 * int(DFLT_SR / DFLT_TILE_SIZE)  # header + one tile
@@ -122,7 +128,7 @@ input_trans = InputTrans(
             'tile_size_frm': int,
             'chk_size_frm': int,
             'n_snips': int,
-            'wf': ensure_array
+            'wf': array_or_str
         }
     })
 
