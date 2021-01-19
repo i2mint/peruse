@@ -23,7 +23,11 @@ class NpEncoder(json.JSONEncoder):
             return super(NpEncoder, self).default(obj)
 
 
-to_jdict = NpEncoder().encode
+np_encode = NpEncoder().encode
+
+
+def to_jdict(obj):
+    return json.loads(np_encode(obj))
 
 
 def ensure_array(x):
