@@ -189,7 +189,7 @@ func_list = [fit]
 
 from py2http import mk_http_service
 
-app = mk_http_service(func_list)
+app = mk_http_service(func_list, enable_cors=True)
 
 ########################################################################################################################
 # Here starts where you need the http wrapper ##########################################################################
