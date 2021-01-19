@@ -1,12 +1,29 @@
 """Webservice for single_wf_snip_analysis (Explore a single waveform with slang)"""
 
 import base64
+import json
+import numpy as np
 
-from flask import jsonify
+# from flask import jsonify
 from numpy import ndarray, array, frombuffer, ceil
 import soundfile as sf
 
 from peruse.single_wf_snip_analysis import TaggedWaveformAnalysis, DFLT_TILE_SIZE, DFLT_CHK_SIZE, DFLT_SR, LDA
+
+
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        else:
+            return super(NpEncoder, self).default(obj)
+
+
+to_jdict = NpEncoder().encode
 
 
 def ensure_array(x):
@@ -105,7 +122,7 @@ class TaggedWaveformAnalysisForWS(TaggedWaveformAnalysis):
         if self.snips is not None:  # TODO: Should be a web service concern!
             if isinstance(self.snips, ndarray):
                 self.snips = self.snips.tolist()
-        return self.get_attr_jdict(self.on_fit_return_attr)
+        return to_jdict(self.get_attr_jdict(self.on_fit_return_attr))
 
 
 ########################################################################################################################
