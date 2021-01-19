@@ -10,7 +10,7 @@ from sklearn.decomposition import PCA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from sklearn.cluster import KMeans
 
-from peruse.util import stft
+from peruse.util import stft, lazyprop
 
 MAX_N_SNIPS = 1001
 DFLT_SR = 44100
@@ -18,57 +18,8 @@ DFLT_TILE_SIZE = 2048
 DFLT_CHK_SIZE = DFLT_TILE_SIZE * 21
 
 
-def lazyprop(fn):
-    """
-    Instead of having to implement the "if hasattr blah blah" code for lazy loading, just write the function that
-    returns the value and decorate it with lazyprop! See example below.
-
-    Taken from https://github.com/sorin/lazyprop.
-
-    :param fn: The @property method (function) to implement lazy loading on
-    :return: a decorated lazy loading property
-
-    >>> class Test(object):
-    ...     @lazyprop
-    ...     def a(self):
-    ...         print 'generating "a"'
-    ...         return range(5)
-    >>> t = Test()
-    >>> t.__dict__
-    {}
-    >>> t.a
-    generating "a"
-    [0, 1, 2, 3, 4]
-    >>> t.__dict__
-    {'_lazy_a': [0, 1, 2, 3, 4]}
-    >>> t.a
-    [0, 1, 2, 3, 4]
-    >>> del t.a
-    >>> t.a
-    generating "a"
-    [0, 1, 2, 3, 4]
-    """
-    attr_name = '_lazy_' + fn.__name__
-
-    @property
-    def _lazyprop(self):
-        if not hasattr(self, attr_name):
-            setattr(self, attr_name, fn(self))
-        return getattr(self, attr_name)
-
-    @_lazyprop.deleter
-    def _lazyprop(self):
-        if hasattr(self, attr_name):
-            delattr(self, attr_name)
-
-    @_lazyprop.setter
-    def _lazyprop(self, value):
-        setattr(self, attr_name, value)
-
-    return _lazyprop
-
-
 # NOTE: (more or less) copied from oto.trans.conversion to keep module independent
+# TODO: Use py2store/utils/affine_conversion.py instead
 class ChkUnitConverter(object):
     def __init__(self, sr=DFLT_SR,
                  buf_size_frm=DFLT_TILE_SIZE,
@@ -296,11 +247,13 @@ class TaggedWaveformAnalysis(object):
                  chk_size_frm=DFLT_CHK_SIZE,
                  n_snips=None,
                  prior_count=1,
-                 knn_dict_perc=15
+                 knn_dict_perc=15,
+                 tile_step_frm=None
                  ):
         self.fv_tiles_model = fv_tiles_model
         self.sr = sr
         self.tile_size_frm = tile_size_frm
+        self.tile_step_frm = tile_step_frm or tile_size_frm
         self.chk_size_frm = chk_size_frm
         self.n_snips = n_snips
 
@@ -310,7 +263,7 @@ class TaggedWaveformAnalysis(object):
         self.prior_count = prior_count
         self.tag_set = None
         self.convert_time = ChkUnitConverter(sr=self.sr,
-                                             buf_size_frm=self.tile_size_frm,
+                                             buf_size_frm=self.tile_step_frm,
                                              chk_size_frm=self.chk_size_frm)
         self.snips = None
         self.knn_dict_perc = knn_dict_perc
@@ -348,7 +301,7 @@ class TaggedWaveformAnalysis(object):
         return wf[bf:tf]
 
     def tiles_of_wf(self, wf):
-        return log_spectr(wf, tile_size=self.tile_size_frm)
+        return log_spectr(wf, tile_size=self.tile_size_frm, tile_step=self.tile_step_frm)
 
     def log_spectr_tiles_and_y_from_wf(self, wf, tag):
         log_spectr_mat = self.tiles_of_wf(wf)
@@ -582,7 +535,7 @@ with suppress(ModuleNotFoundError):
             plt.grid('on')
 
         def plot_tiles(self, x, figsize=(16, 5), ax=None):
-            plot_wf(x, self.sr / self.tile_size_frm, figsize=figsize, ax=ax)
+            plot_wf(x, self.sr / self.tile_step_frm, figsize=figsize, ax=ax)
             plt.grid('on')
 
         def plot_tag_probs_for_snips(self, snips, tag=None, smooth=None):

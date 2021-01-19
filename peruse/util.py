@@ -61,3 +61,53 @@ def pplot(*args, figsize=(22, 5), **kwargs):
     if figsize is not None:
         plt.figure(figsize=figsize)
     return plt.plot(*args, **kwargs)
+
+
+def lazyprop(fn):
+    """
+    Instead of having to implement the "if hasattr blah blah" code for lazy loading, just write the function that
+    returns the value and decorate it with lazyprop! See example below.
+
+    Taken from https://github.com/sorin/lazyprop.
+
+    :param fn: The @property method (function) to implement lazy loading on
+    :return: a decorated lazy loading property
+
+    >>> class Test(object):
+    ...     @lazyprop
+    ...     def a(self):
+    ...         print 'generating "a"'
+    ...         return range(5)
+    >>> t = Test()
+    >>> t.__dict__
+    {}
+    >>> t.a
+    generating "a"
+    [0, 1, 2, 3, 4]
+    >>> t.__dict__
+    {'_lazy_a': [0, 1, 2, 3, 4]}
+    >>> t.a
+    [0, 1, 2, 3, 4]
+    >>> del t.a
+    >>> t.a
+    generating "a"
+    [0, 1, 2, 3, 4]
+    """
+    attr_name = '_lazy_' + fn.__name__
+
+    @property
+    def _lazyprop(self):
+        if not hasattr(self, attr_name):
+            setattr(self, attr_name, fn(self))
+        return getattr(self, attr_name)
+
+    @_lazyprop.deleter
+    def _lazyprop(self):
+        if hasattr(self, attr_name):
+            delattr(self, attr_name)
+
+    @_lazyprop.setter
+    def _lazyprop(self, value):
+        setattr(self, attr_name, value)
+
+    return _lazyprop
