@@ -154,7 +154,7 @@ input_trans = InputTrans(
         }
     })
 
-output_trans = OutputTrans({_ELSE: lambda x: jsonify({'_result': x})})
+output_trans = OutputTrans({_ELSE: lambda x: jsonify(x)})
 
 # wrapper ##############################################################################################################
 slang_lite = WebObjWrapper(obj_constructor=TaggedWaveformAnalysisForWS,
