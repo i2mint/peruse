@@ -4,10 +4,11 @@ from numpy import ceil, zeros, hanning, fft
 import matplotlib.pyplot as plt
 
 DFLT_WIN_FUNC = hanning
+DFLT_AMPLITUDE_FUNC = np.abs
 
 
 def named_partial(name, func, *args, **kwargs):
-    partial_func = partial(*args, **kwargs)
+    partial_func = partial(func, *args, **kwargs)
     partial_func.name = name
     return partial_func
 
@@ -41,6 +42,48 @@ def stft(y, n_fft=2048, hop_length=None, win_func=DFLT_WIN_FUNC):
     S = S[:n_fft // 2 + 1, :]
 
     return S
+
+
+def chk_to_spectrum(chk, *, chk_size, window=DFLT_WIN_FUNC, amplitude_func=DFLT_AMPLITUDE_FUNC):
+    assert len(chk) == chk_size, (
+        f"This function was made for chk_size={chk_size}. "
+        f"You fed a chk of size len(chk)={len(chk)} instead")
+    fft_amplitudes = amplitude_func(np.fft.rfft(chk * window))
+    return fft_amplitudes
+
+
+def mk_chk_fft(chk_size=None, window=DFLT_WIN_FUNC, amplitude_func=DFLT_AMPLITUDE_FUNC):
+    """Make a chk_fft function that will compute the fft (with given amplitude and window).
+    Note that this output chk_fft function will enforce a fixed chk_size (given explicitly, or through the
+    size of the window (if window is given as an array)
+
+    >>> chk_size = 4 * 5
+    >>> f = mk_chk_fft(chk_size)
+    >>> chk = 4 * list(range(chk_size // 4))
+    >>> f(chk)
+    array([19.        , 10.214421  ,  0.40774689,  4.34150779,  8.09801978,
+            4.30684381,  0.26711259,  2.61514496,  5.04588504,  2.6255033 ,
+            0.21962565])
+    >>> # verifying that it's pickable
+    >>> import pickle
+    >>> import numpy as np
+    >>> ff = pickle.loads(pickle.dumps(f))
+    >>> assert np.allclose(ff(chk), ff(chk))
+    """
+    if callable(window):
+        assert chk_size is not None, "chk_size must be a positive integer if window is a callable, or None"
+        window = window(chk_size)
+    elif window is None:
+        window = 1
+    else:
+        window = np.array(window)
+        if chk_size is not None:
+            assert len(window) == chk_size, f"chk_size ({chk_size}) and len(window) ({len(window)}) don't match"
+
+    chk_spectrum = named_partial('chk_to_spectrum', chk_to_spectrum,
+                                 chk_size=chk_size, window=window, amplitude_func=amplitude_func)
+    chk_spectrum.chk_size = chk_size
+    return chk_spectrum
 
 
 def pad_to_align(*arrays):
