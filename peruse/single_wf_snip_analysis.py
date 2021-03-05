@@ -9,6 +9,7 @@ from numpy import array, unique, log, ndarray, nan, where, empty, percentile, ra
 from sklearn.decomposition import PCA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from sklearn.cluster import KMeans
+from linkup.base import map_op_val, key_aligned_val_op_with_forced_defaults, key_aligned_val_op, OperableMapping
 
 from peruse.util import stft, lazyprop
 
@@ -16,6 +17,8 @@ MAX_N_SNIPS = 1001
 DFLT_SR = 44100
 DFLT_TILE_SIZE = 2048
 DFLT_CHK_SIZE = DFLT_TILE_SIZE * 21
+
+DictWithOps = OperableMapping
 
 
 # NOTE: (more or less) copied from oto.trans.conversion to keep module independent
@@ -154,62 +157,6 @@ def count_to_prob(count_of_item, item_set, prior_count=1):
         prob_of_item[item] = new_count
         total_count += new_count
     return {item: count / float(total_count) for item, count in prob_of_item.items()}
-
-
-def key_aligned_val_op(dict_1, dict_2, op, dflt_val_1=None, dflt_val_2=None):
-    result_dict = dict()
-    for k, v1 in dict_1.items():
-        v2 = dict_2.get(k, dflt_val_2)
-        if v2 is not None:
-            result_dict[k] = op(v1, v2)
-            # else, don't include the key
-    if dflt_val_1 is not None:
-        for k in set(dict_2).difference(result_dict):
-            result_dict[k] = op(dflt_val_1, dict_2[k])
-
-    return result_dict
-
-
-def key_aligned_val_op_with_forced_defaults(dict_1, dict_2, op, dflt_val_1, dflt_val_2):
-    result_dict = dict()
-    for k, v1 in dict_1.items():
-        v2 = dict_2.get(k, dflt_val_2)
-        result_dict[k] = op(v1, v2)
-    for k in set(dict_2).difference(result_dict):
-        result_dict[k] = op(dflt_val_1, dict_2[k])
-
-    return result_dict
-
-
-def dict_op_val(dict_1, val, op):
-    return {k: op(v, val) for k, v in dict_1.items()}
-
-
-class DictWithOps(dict):
-    def __add__(self, dict_2):
-        if isinstance(dict_2, dict):
-            return key_aligned_val_op_with_forced_defaults(self, dict_2, operator.__add__, dflt_val_1=0, dflt_val_2=0)
-        else:
-            return dict_op_val(self, dict_2, operator.__add__)
-
-    def __sub__(self, dict_2):
-        if isinstance(dict_2, dict):
-            return key_aligned_val_op_with_forced_defaults(self, dict_2, operator.__sub__, dflt_val_1=0, dflt_val_2=0)
-        else:
-            return dict_op_val(self, dict_2, operator.__sub__)
-
-    def __mul__(self, dict_2):
-        if isinstance(dict_2, dict):
-            return key_aligned_val_op_with_forced_defaults(self, dict_2, operator.__mul__, dflt_val_1=1, dflt_val_2=1)
-        else:
-            return dict_op_val(self, dict_2, operator.__mul__)
-
-    def __truediv__(self, dict_2):
-        if isinstance(dict_2, dict):
-            return key_aligned_val_op_with_forced_defaults(self, dict_2, operator.__truediv__, dflt_val_1=1,
-                                                           dflt_val_2=1)
-        else:
-            return dict_op_val(self, dict_2, operator.__truediv__)
 
 
 def normalized_cityblock_dist_mat(pts):
