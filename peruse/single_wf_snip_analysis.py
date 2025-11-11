@@ -1,4 +1,52 @@
-"""Explore a single waveform with slang"""
+"""Explore waveforms using "snips" - discrete symbols representing audio patterns.
+
+This module provides tools for analyzing audio waveforms by converting them into
+sequences of discrete symbols called "snips". This enables text-like analysis and
+pattern recognition in audio signals.
+
+Main Classes
+------------
+TaggedWaveformAnalysis
+    Core class for unsupervised or supervised waveform analysis using clustering.
+TaggedWaveformAnalysisExtended
+    Extended version with plotting capabilities (requires hum package).
+
+Key Concepts
+------------
+Snips : Discrete audio patterns
+    The waveform is divided into tiles (STFT windows), each tile is converted to a
+    feature vector using dimensionality reduction (PCA/LDA), and then clustered into
+    discrete snips using KMeans. This creates a symbolic representation of audio.
+
+Tiles : Spectral windows
+    Short-time Fourier transform (STFT) windows that capture local spectral content.
+
+Tags : Semantic labels
+    Optional annotations for supervised learning, mapping time segments to categories.
+
+Examples
+--------
+Basic unsupervised analysis:
+
+>>> from peruse import TaggedWaveformAnalysis
+>>> import numpy as np
+>>> wf = np.random.randn(44100)  # 1 second of audio
+>>> twa = TaggedWaveformAnalysis(sr=44100, n_snips=50)
+>>> twa.fit(wf)
+>>> snips = twa.snips_of_wf(wf)
+>>> prob_dist = twa.prob_of_snip
+
+Supervised analysis with tags:
+
+>>> tag_segments = {
+...     'speech': [(0.0, 1.5), (3.0, 4.5)],
+...     'music': [(1.5, 3.0)],
+...     'silence': [(4.5, 5.0)]
+... }
+>>> twa = TaggedWaveformAnalysis(sr=44100)
+>>> twa.fit(wf, annots_for_tag=tag_segments)
+>>> tag_probs = twa.tag_prob_for_snip  # Probability of each tag for each snip
+"""
 
 import operator
 import itertools
@@ -9,7 +57,12 @@ from numpy import array, unique, log, ndarray, nan, where, empty, percentile, ra
 from sklearn.decomposition import PCA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from sklearn.cluster import KMeans
-from linkup.base import map_op_val, key_aligned_val_op_with_forced_defaults, key_aligned_val_op, OperableMapping
+
+try:
+    from linkup.base import map_op_val, key_aligned_val_op_with_forced_defaults, key_aligned_val_op, OperableMapping
+except ImportError:
+    # Fallback to mock for testing
+    from peruse._mocks.linkup_mock import map_op_val, key_aligned_val_op_with_forced_defaults, key_aligned_val_op, OperableMapping
 
 from peruse.util import stft, lazyprop
 
@@ -187,6 +240,70 @@ def knn_dict_from_pts(pts, p=15):
 
 
 class TaggedWaveformAnalysis(object):
+    """Analyze waveforms by converting them to discrete "snips" using unsupervised or supervised learning.
+
+    This class implements a pipeline for audio analysis that:
+    1. Converts audio waveforms to spectrograms (tiles)
+    2. Reduces dimensionality using PCA or LDA
+    3. Clusters the feature vectors into discrete "snips" using KMeans
+    4. Provides probability distributions over snips and tags
+
+    Snips are discrete symbols representing audio patterns, enabling text-like analysis
+    of audio signals. This approach supports both unsupervised exploration and supervised
+    classification when tags are provided.
+
+    Parameters
+    ----------
+    fv_tiles_model : sklearn estimator, default=LDA(n_components=11)
+        Model for dimensionality reduction. Use LDA for supervised (with tags) or PCA for
+        unsupervised analysis. Must have fit() and transform() methods.
+    sr : int, default=44100
+        Sample rate in Hz.
+    tile_size_frm : int, default=2048
+        Size of each STFT window in frames.
+    chk_size_frm : int, default=DFLT_TILE_SIZE * 21
+        Chunk size in frames for processing.
+    n_snips : int or None, default=None
+        Number of snip clusters. If None, automatically determined as sqrt(n_samples).
+    prior_count : int, default=1
+        Laplace smoothing parameter for probability calculations.
+    knn_dict_perc : int, default=15
+        Percentile for k-nearest neighbors calculation.
+    tile_step_frm : int or None, default=None
+        Step size between tiles in frames. If None, equals tile_size_frm (no overlap).
+
+    Attributes
+    ----------
+    fvs_to_snips : KMeans
+        Fitted clustering model mapping feature vectors to snips.
+    snips : ndarray
+        Snips extracted from the fitted waveform.
+    prob_of_snip : dict
+        Probability distribution over snips.
+    tag_count_for_snip : dict
+        Count of tags for each snip (supervised mode only).
+    classes_ : list
+        List of tag names (supervised mode only).
+
+    Examples
+    --------
+    Unsupervised analysis:
+
+    >>> import numpy as np
+    >>> from peruse import TaggedWaveformAnalysis
+    >>> wf = np.random.randn(44100)  # 1 second of audio
+    >>> twa = TaggedWaveformAnalysis(sr=44100)
+    >>> twa.fit(wf)
+    >>> snips = twa.snips_of_wf(wf)
+    >>> probs = twa.prob_of_snip
+
+    Supervised analysis with tags:
+
+    >>> tag_segments = {'speech': [(0.0, 1.0)], 'music': [(1.0, 2.0)]}
+    >>> twa = TaggedWaveformAnalysis(sr=44100)
+    >>> twa.fit(wf, annots_for_tag=tag_segments)
+    >>> tag_probs = twa.tag_prob_for_snip
+    """
     def __init__(self,
                  fv_tiles_model=LDA(n_components=11),
                  sr=DFLT_SR,
@@ -217,6 +334,29 @@ class TaggedWaveformAnalysis(object):
         self.knn_dict = None
 
     def fit(self, wf, annots_for_tag=None, n_snips=None):
+        """Fit the model on a waveform, with optional tag annotations for supervised learning.
+
+        Parameters
+        ----------
+        wf : ndarray
+            Input waveform signal (1D array of audio samples).
+        annots_for_tag : dict, optional
+            Dictionary mapping tags to time segments, format: {'tag': [(bt, tt), ...]}.
+            Time segments are (begin_time, end_time) tuples in seconds.
+            If None, performs unsupervised learning using PCA.
+        n_snips : int, optional
+            Number of snip clusters. Overrides the value set in __init__.
+
+        Returns
+        -------
+        self : TaggedWaveformAnalysis
+            Fitted estimator.
+
+        Examples
+        --------
+        >>> twa = TaggedWaveformAnalysis(sr=44100)
+        >>> twa.fit(wf, annots_for_tag={'speech': [(0.0, 1.0)], 'music': [(1.0, 2.0)]})
+        """
         tiles, tags = self.log_spectr_tiles_and_tags_from_tag_segment_annots(wf, annots_for_tag)
         self.fit_fv_tiles_model(tiles, tags)
         fvs = self.fv_tiles_model.transform(tiles)
@@ -331,6 +471,25 @@ class TaggedWaveformAnalysis(object):
         return self.snips_of_fvs([fv])[0]
 
     def snips_of_wf(self, wf):
+        """Convert a waveform to a sequence of snips.
+
+        Parameters
+        ----------
+        wf : ndarray
+            Input waveform signal (1D array of audio samples).
+
+        Returns
+        -------
+        snips : ndarray
+            Array of snip indices, one for each tile in the waveform.
+
+        Examples
+        --------
+        >>> twa = TaggedWaveformAnalysis(sr=44100)
+        >>> twa.fit(wf)
+        >>> snips = twa.snips_of_wf(wf)
+        >>> print(snips)  # e.g., [2, 5, 5, 7, 3, ...]
+        """
         tiles = self.tiles_of_wf(wf)
         fvs = self.fv_of_tiles(tiles)
         return self.snips_of_fvs(fvs)
@@ -477,6 +636,32 @@ with suppress(ModuleNotFoundError):
 
 
     class TaggedWaveformAnalysisExtended(TaggedWaveformAnalysis):
+        """Extended version of TaggedWaveformAnalysis with plotting capabilities.
+
+        This class extends TaggedWaveformAnalysis by adding visualization methods
+        for waveforms, tiles, and tag probabilities. Requires matplotlib and hum packages.
+
+        All methods and attributes from TaggedWaveformAnalysis are available.
+        Additional methods provide plotting functionality for exploring audio patterns.
+
+        Methods
+        -------
+        plot_wf(x)
+            Plot a waveform.
+        plot_tiles(x, figsize=(16, 5), ax=None)
+            Plot tiles (e.g., snip probabilities) over time.
+        plot_tag_probs_for_snips(snips, tag=None, smooth=None)
+            Plot tag probabilities for a sequence of snips.
+
+        Examples
+        --------
+        >>> from peruse import TaggedWaveformAnalysisExtended
+        >>> twa = TaggedWaveformAnalysisExtended(sr=44100)
+        >>> twa.fit(wf)
+        >>> twa.plot_wf(wf)  # Visualize waveform
+        >>> snips = twa.snips_of_wf(wf)
+        >>> twa.plot_tiles(1/np.array([twa.prob_of_snip[s] for s in snips]))  # Plot rarity
+        """
         def plot_wf(self, x):
             plot_wf(x, self.sr)
             plt.grid('on')
