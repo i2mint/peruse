@@ -1,4 +1,4 @@
-from typing import Callable
+from collections.abc import Callable
 from functools import partial
 import numpy as np
 from numpy import ceil, zeros, hanning, fft

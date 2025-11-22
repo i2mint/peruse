@@ -23,7 +23,7 @@ DictWithOps = OperableMapping
 
 # NOTE: (more or less) copied from oto.trans.conversion to keep module independent
 # TODO: Use py2store/utils/affine_conversion.py instead
-class ChkUnitConverter(object):
+class ChkUnitConverter:
     def __init__(self, sr=DFLT_SR,
                  buf_size_frm=DFLT_TILE_SIZE,
                  chk_size_frm=DFLT_CHK_SIZE,
@@ -60,7 +60,7 @@ class ChkUnitConverter(object):
                 return round(val * self.buf_size_frm / self.sr, ndigits=self.rounding_ndigits)
             elif val_unit == 'chk':
                 return round(val * self.chk_size_frm / self.sr, ndigits=self.rounding_ndigits)
-        raise ValueError("I didn't have a way to convert {} unit into {} unit.".format(val_unit, target_unit))
+        raise ValueError(f"I didn't have a way to convert {val_unit} unit into {target_unit} unit.")
 
 
 def abs_stft(wf, tile_size=DFLT_TILE_SIZE, tile_step=None):
@@ -186,7 +186,7 @@ def knn_dict_from_pts(pts, p=15):
     return knn_dict_from_dist_mat(normalized_cityblock_dist_mat(pts), p=p)
 
 
-class TaggedWaveformAnalysis(object):
+class TaggedWaveformAnalysis:
     def __init__(self,
                  fv_tiles_model=LDA(n_components=11),
                  sr=DFLT_SR,
@@ -386,7 +386,7 @@ class TaggedWaveformAnalysis(object):
     def conditional_prob_ratio_of_snip(self, condition=None):
         if condition is None:
             # unif_prob_of_snip = 1 / self.n_snips
-            condition = defaultdict(lambda: 0)  # uniform count of a snip
+            condition = defaultdict(int)  # uniform count of a snip
         else:
             if not isinstance(condition, dict):
                 # then assume condition is a list of snips, and compute the snip count of it

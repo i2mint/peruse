@@ -1,5 +1,6 @@
 from dataclasses import dataclass
-from typing import Sequence, Optional, Iterable
+from typing import Optional
+from collections.abc import Sequence, Iterable
 
 from scipy.signal import correlate, find_peaks
 from lined import Line, iterize

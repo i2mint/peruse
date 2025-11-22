@@ -20,7 +20,7 @@ class NpEncoder(json.JSONEncoder):
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
         else:
-            return super(NpEncoder, self).default(obj)
+            return super().default(obj)
 
 
 np_encode = NpEncoder().encode
@@ -109,7 +109,7 @@ class TaggedWaveformAnalysisForWS(TaggedWaveformAnalysis):
                  knn_dict_perc=15,
                  on_fit_return_attr=DFLT_ON_FIT_RETURN_ATTR
                  ):
-        super(TaggedWaveformAnalysisForWS, self).__init__(
+        super().__init__(
             fv_tiles_model=fv_tiles_model,
             sr=sr,
             tile_size_frm=tile_size_frm,
@@ -122,7 +122,7 @@ class TaggedWaveformAnalysisForWS(TaggedWaveformAnalysis):
 
     def fit(self, wf, annots_for_tag=None, n_snips=None):
         wf = wf_from(wf)
-        super(TaggedWaveformAnalysisForWS, self).fit(wf, annots_for_tag=annots_for_tag, n_snips=n_snips)
+        super().fit(wf, annots_for_tag=annots_for_tag, n_snips=n_snips)
         if self.snips is not None:  # TODO: Should be a web service concern!
             if isinstance(self.snips, ndarray):
                 self.snips = self.snips.tolist()

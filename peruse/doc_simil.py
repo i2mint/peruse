@@ -1,4 +1,4 @@
-from typing import Mapping, Callable
+from collections.abc import Mapping, Callable
 from functools import partial
 from dataclasses import dataclass
 
@@ -98,7 +98,7 @@ class SnipDocSimilScorer(DocSimilScorer):
 
 from py2store import KvReader
 from dataclasses import dataclass
-from typing import Sequence
+from collections.abc import Sequence
 from slang import dflt_snips_to_str
 
 
