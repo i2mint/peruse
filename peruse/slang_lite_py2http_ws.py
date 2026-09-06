@@ -132,8 +132,8 @@ class TaggedWaveformAnalysisForWS(TaggedWaveformAnalysis):
 ########################################################################################################################
 # py2http version
 
-from py2http.service import run_http_service
-from py2http.decorators import mk_flat, handle_json_req, handle_multipart_req
+from py2http.service import run_app
+from py2http.decorators import mk_flat, handle_json_req
 
 # Increase the request limit to be able to handle
 from bottle import BaseRequest
@@ -208,9 +208,9 @@ fit = mk_flat(TaggedWaveformAnalysisForWS, TaggedWaveformAnalysisForWS.fit, func
 fit.input_mapper = input_mapper
 func_list = [fit]
 
-from py2http import mk_http_service
+from py2http import mk_app
 
-app = mk_http_service(func_list, enable_cors=True)
+app = mk_app(func_list, enable_cors=True)
 
 ########################################################################################################################
 # Here starts where you need the http wrapper ##########################################################################
@@ -266,5 +266,5 @@ if __name__ == "__main__":
     # app.run(**app_run_kwargs)
 
     # Create an HTTP server
-    # run_http_service(func_list)
+    # run_app(func_list)
     app.run()
