@@ -152,8 +152,8 @@ input_trans_spec_00 = {
 }
 
 
-@handle_json_req  # extracts the JSON body and passes it to the input mapper as a dict
-def array_input_mapper(input_kwargs):
+@handle_json_req  # extracts the JSON body and spreads it over the mapper's keyword arguments
+def array_input_mapper(**input_kwargs):
     def gen():
         for k, v in input_kwargs.items():
             if k in input_trans_spec_00:
@@ -187,6 +187,9 @@ def array_input_mapper(input_kwargs):
 #     return dict(gen())
 #
 #
+# NOTE: py2http renamed ``handle_multipart_req`` to ``handle_form_req``, and changed the
+# multipart protocol along with it: the non-binary fields now travel as a single JSON part
+# named ``__fields``. Reviving the block below means porting it to that contract.
 # @handle_multipart_req
 # def sound_file_handling(input_kwargs):
 #     input_kwargs = transform_with_mapping(input_kwargs, input_trans_spec)
@@ -208,9 +211,11 @@ fit = mk_flat(TaggedWaveformAnalysisForWS, TaggedWaveformAnalysisForWS.fit, func
 fit.input_mapper = input_mapper
 func_list = [fit]
 
-from py2http import mk_app
+# Aliased because the (commented out) py2api block further down names a different
+# ``mk_app``; under py2http's former ``mk_http_service`` spelling the two could not collide.
+from py2http import mk_app as mk_py2http_app
 
-app = mk_app(func_list, enable_cors=True)
+app = mk_py2http_app(func_list, enable_cors=True)
 
 ########################################################################################################################
 # Here starts where you need the http wrapper ##########################################################################
