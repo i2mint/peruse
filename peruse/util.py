@@ -4,19 +4,7 @@ import numpy as np
 from numpy import ceil, zeros, hanning, fft
 import matplotlib.pyplot as plt
 
-try:
-    from lined import Line
-except ImportError:
-    # Simple mock for Line when lined is not available
-    class Line:
-        def __init__(self, *funcs):
-            self.funcs = funcs
-
-        def __call__(self, x):
-            result = x
-            for func in self.funcs:
-                result = func(result)
-            return result
+from lined import Line
 
 DFLT_WIN_FUNC = hanning
 DFLT_AMPLITUDE_FUNC = np.abs
