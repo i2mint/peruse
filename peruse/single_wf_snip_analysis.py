@@ -26,26 +26,26 @@ Tags : Semantic labels
 
 Examples
 --------
-Basic unsupervised analysis:
+Basic unsupervised analysis (the tiles are reduced with PCA):
 
->>> from peruse import TaggedWaveformAnalysis
 >>> import numpy as np
->>> wf = np.random.randn(44100)  # 1 second of audio
->>> twa = TaggedWaveformAnalysis(sr=44100, n_snips=50)
->>> twa.fit(wf)
->>> snips = twa.snips_of_wf(wf)
->>> prob_dist = twa.prob_of_snip
+>>> from peruse import TaggedWaveformAnalysis
+>>> wf = np.random.default_rng(0).standard_normal(3 * 44100)  # 3 seconds of noise
+>>> twa = TaggedWaveformAnalysis(sr=44100, n_snips=5).fit(wf)
+>>> snips = twa.snips_of_wf(wf)  # one snip per tile
+>>> len(snips), len(twa.prob_of_snip)
+(65, 5)
 
-Supervised analysis with tags:
+Supervised analysis with tags. The default ``fv_tiles_model`` is
+``LDA(n_components=11)``, which needs at least 12 distinct tags; with fewer, give
+an LDA with at most ``n_tags - 1`` components:
 
->>> tag_segments = {
-...     'speech': [(0.0, 1.5), (3.0, 4.5)],
-...     'music': [(1.5, 3.0)],
-...     'silence': [(4.5, 5.0)]
-... }
->>> twa = TaggedWaveformAnalysis(sr=44100)
->>> twa.fit(wf, annots_for_tag=tag_segments)
->>> tag_probs = twa.tag_prob_for_snip  # Probability of each tag for each snip
+>>> from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
+>>> tag_segments = {'speech': [(0.0, 1.5)], 'music': [(1.5, 3.0)]}
+>>> twa = TaggedWaveformAnalysis(fv_tiles_model=LDA(n_components=1), sr=44100, n_snips=5)
+>>> twa = twa.fit(wf, annots_for_tag=tag_segments)
+>>> sorted(map(str, twa.tag_prob_for_snip[0]))  # P(tag | snip) for snip 0
+['music', 'speech']
 """
 
 import operator
@@ -58,11 +58,7 @@ from sklearn.decomposition import PCA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from sklearn.cluster import KMeans
 
-try:
-    from linkup.base import map_op_val, key_aligned_val_op_with_forced_defaults, key_aligned_val_op, OperableMapping
-except ImportError:
-    # Fallback to mock for testing
-    from peruse._mocks.linkup_mock import map_op_val, key_aligned_val_op_with_forced_defaults, key_aligned_val_op, OperableMapping
+from linkup.base import map_op_val, key_aligned_val_op_with_forced_defaults, key_aligned_val_op, OperableMapping
 
 from peruse.util import stft, lazyprop
 
@@ -255,8 +251,12 @@ class TaggedWaveformAnalysis(object):
     Parameters
     ----------
     fv_tiles_model : sklearn estimator, default=LDA(n_components=11)
-        Model for dimensionality reduction. Use LDA for supervised (with tags) or PCA for
-        unsupervised analysis. Must have fit() and transform() methods.
+        Model for dimensionality reduction, used when fitting with tags; must have
+        fit() and transform() methods. An LDA needs more distinct tags than
+        components (the default needs at least 12). Fitting without tags replaces it
+        with ``PCA(n_components=11)``. Note that the default is one shared instance
+        (a mutable default argument): pass your own when several analyses are
+        fitted with tags in the same process.
     sr : int, default=44100
         Sample rate in Hz.
     tile_size_frm : int, default=2048
@@ -264,7 +264,8 @@ class TaggedWaveformAnalysis(object):
     chk_size_frm : int, default=DFLT_TILE_SIZE * 21
         Chunk size in frames for processing.
     n_snips : int or None, default=None
-        Number of snip clusters. If None, automatically determined as sqrt(n_samples).
+        Number of snip clusters. If None, round(sqrt(n_tiles)), clipped to
+        [2, MAX_N_SNIPS].
     prior_count : int, default=1
         Laplace smoothing parameter for probability calculations.
     knn_dict_perc : int, default=15
@@ -287,22 +288,7 @@ class TaggedWaveformAnalysis(object):
 
     Examples
     --------
-    Unsupervised analysis:
-
-    >>> import numpy as np
-    >>> from peruse import TaggedWaveformAnalysis
-    >>> wf = np.random.randn(44100)  # 1 second of audio
-    >>> twa = TaggedWaveformAnalysis(sr=44100)
-    >>> twa.fit(wf)
-    >>> snips = twa.snips_of_wf(wf)
-    >>> probs = twa.prob_of_snip
-
-    Supervised analysis with tags:
-
-    >>> tag_segments = {'speech': [(0.0, 1.0)], 'music': [(1.0, 2.0)]}
-    >>> twa = TaggedWaveformAnalysis(sr=44100)
-    >>> twa.fit(wf, annots_for_tag=tag_segments)
-    >>> tag_probs = twa.tag_prob_for_snip
+    See the module docstring for runnable unsupervised and supervised examples.
     """
 
     def __init__(self,
@@ -353,10 +339,7 @@ class TaggedWaveformAnalysis(object):
         self : TaggedWaveformAnalysis
             Fitted estimator.
 
-        Examples
-        --------
-        >>> twa = TaggedWaveformAnalysis(sr=44100)
-        >>> twa.fit(wf, annots_for_tag={'speech': [(0.0, 1.0)], 'music': [(1.0, 2.0)]})
+        See the module docstring for examples.
         """
         tiles, tags = self.log_spectr_tiles_and_tags_from_tag_segment_annots(wf, annots_for_tag)
         self.fit_fv_tiles_model(tiles, tags)
@@ -484,12 +467,7 @@ class TaggedWaveformAnalysis(object):
         snips : ndarray
             Array of snip indices, one for each tile in the waveform.
 
-        Examples
-        --------
-        >>> twa = TaggedWaveformAnalysis(sr=44100)
-        >>> twa.fit(wf)
-        >>> snips = twa.snips_of_wf(wf)
-        >>> print(snips)  # e.g., [2, 5, 5, 7, 3, ...]
+        See the module docstring for examples.
         """
         tiles = self.tiles_of_wf(wf)
         fvs = self.fv_of_tiles(tiles)
@@ -656,12 +634,11 @@ with suppress(ModuleNotFoundError):
 
         Examples
         --------
-        >>> from peruse import TaggedWaveformAnalysisExtended
-        >>> twa = TaggedWaveformAnalysisExtended(sr=44100)
-        >>> twa.fit(wf)
-        >>> twa.plot_wf(wf)  # Visualize waveform
-        >>> snips = twa.snips_of_wf(wf)
-        >>> twa.plot_tiles(1/np.array([twa.prob_of_snip[s] for s in snips]))  # Plot rarity
+        >>> from peruse import TaggedWaveformAnalysisExtended  # doctest: +SKIP
+        >>> twa = TaggedWaveformAnalysisExtended(sr=44100).fit(wf)  # doctest: +SKIP
+        >>> twa.plot_wf(wf)  # Visualize waveform  # doctest: +SKIP
+        >>> snips = twa.snips_of_wf(wf)  # doctest: +SKIP
+        >>> twa.plot_tiles(1 / np.array([twa.prob_of_snip[s] for s in snips]))  # doctest: +SKIP
         """
         def plot_wf(self, x):
             plot_wf(x, self.sr)
